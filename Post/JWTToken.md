@@ -50,3 +50,40 @@
 - 토큰은 클라이언트측에서 보관하기 때문에, **서버는 완전히 stateless하며, 확장성이 높다.**
 - 토큰에 **선택적인 권한만 부여**하여 발급이 가능하다.
 - OAuth의 경우 소셜 계정을 이용해 다른 웹서비스에서도 로그인을 할 수 있다.
+
+# 안전하게 JWT를 저장하기위한 다양한 시도
+
+## 1. ~~localstorage에 저장~~
+
+- `localstorage`는 각각 출처에 대해 독립적인 저장 공간을 제공한다(Web Storage 개념과 사용법).
+- 즉 브라우저에서 다른 페이지에 접속 시 우리 서비스에서 저장한 JWT를 열람할 수 없다.
+- 하지만 결국 JS로 `localstorage`에 저장된 값을 열람할 수 있다는 사실은 변하지 않는다.
+- 따라서 XSS 공격을 받을 시 JS로 JWT을 열람할 수 있는 이슈가 있다.
+
+## 2. ~~cookie에 저장~~
+
+- XSS 공격으로부터 `localStorage`에 비해 안전하다.
+- `cookie`의 `httpOnly` 옵션을 사용하면 JS에서 `cookie`에 접근 자체가 불가능하다.
+  그래서 XSS 공격으로 쿠키 정보를 탈취할 수 없다.
+- 하지만 CSRF 공격에 취약하다.
+- 자동으로 `request`에 담아서 보내기 때문에
+  공격자가 `request url`만 안다면
+  사용자가 관련 link를 클릭하도록 유도하여 `request`를 위조하기 쉽다.
+
+## 3. Refresh Token 사용하기
+
+1. 백엔드 api 개발자와 소통이 가능하다면
+   `refreshToken`을 `httpOnly` 옵션 설정하고
+   url이 새로고침 될 때마다 `refreshToken`을 `request`에 담아
+   새로운 `accessToken`을 발급 받는다.
+
+2. 발급 받은 `accessToken`은 `js private variable`이나 `localStorage`에 분리하여 저장한다.
+
+이런 방식을 사용하는 경우,
+`refreshToken`이 CSRF에 의해 사용된다 하더라도
+공격자는 `accessToken`을 알 수 없다.
+
+CSRF는 피해자의 컴퓨터를 제어할 수 있는 것이 아니기 때문이다.
+요청을 위조하여 피해자가 의도하지 않은 서버 동작을 일으키는 공격방법이기 때문에 `refresh Token`을 통해 받아온 `response`(accessToken)는 공격자가 확인할 수 없다.
+
+> 따라서 `cookie`를 사용하여 XSS를 막고 `refreshToken` 방식을 이용하여 CSRF를 막을 수 있다.
